@@ -1,6 +1,7 @@
 package sneak
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -14,32 +15,30 @@ var (
 )
 
 type Enumerator struct {
-	Hostname *string `json:"hostname"`
-	EnvType  *string `json:"env"`
-	Results  map[string]*SsrfResults
+	Hostname string                  `json:"hostname"`
+	EnvType  string                  `json:"env"`
+	Results  map[string]*SsrfResults `json:"ssrf_results"`
 }
 
 // Creates a new Enumerator, populates with inital recon,
 // and prepare to build from SSRF checks.
 func StartEnum() *Enumerator {
 
-	var hostname *string
-	host, err := os.Hostname()
+	var hostname string
+	hostname, err := os.Hostname()
 	if err != nil {
-		hostname = nil
-	} else {
-		hostname = &host
+		hostname = "none"
 	}
 
 	// check for Docker by control groups
-	var envtype *string
+	var envtype string
 	b, err := ioutil.ReadFile("/proc/1/cgroup")
 	if err != nil {
-		envtype = nil
+		envtype = VirtMachine
 	} else if strings.Contains(string(b), "docker") {
-		envtype = &Container
+		envtype = Container
 	} else {
-		envtype = &VirtMachine
+		envtype = VirtMachine
 	}
 
 	return &Enumerator{
@@ -106,5 +105,13 @@ func (e *Enumerator) CheckEnv() {
 // Outputs results to stdout, or in the case of blind test, send back
 // results to an attacker-controlled webhook.
 func (e *Enumerator) Export(webhook *string) {
+	jsonified, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		panic(err)
+	}
 
+	if webhook != nil || *webhook != "" {
+		// TODO
+	}
+	fmt.Printf("%s\n", string(jsonified))
 }
