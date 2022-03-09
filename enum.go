@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
 )
 
@@ -15,20 +14,13 @@ var (
 )
 
 type Enumerator struct {
-	Hostname string                  `json:"hostname"`
-	EnvType  string                  `json:"env"`
-	Results  map[string]*SsrfResults `json:"ssrf_results"`
+	EnvType string                  `json:"env"`
+	Results map[string]*SsrfResults `json:"ssrf_results"`
 }
 
 // Creates a new Enumerator, populates with inital recon,
 // and prepare to build from SSRF checks.
 func StartEnum() *Enumerator {
-
-	var hostname string
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "none"
-	}
 
 	// check for Docker by control groups
 	var envtype string
@@ -42,8 +34,7 @@ func StartEnum() *Enumerator {
 	}
 
 	return &Enumerator{
-		Hostname: hostname,
-		EnvType:  envtype,
+		EnvType: envtype,
 		Results: map[string]*SsrfResults{
 			"cloud": nil,
 			"net":   nil,
