@@ -1,6 +1,5 @@
 all:
-	go build && go build cmd/sneak/main.go
-	mv ./main ./sneak
+	go build -o sneak cmd/sneak/main.go
 
 clean:
 	rm -f sneak

@@ -15,7 +15,7 @@ var (
 	noEnv   = flag.Bool("no-env", false, "Disables enumerating envvars for internal endpoints")
 
 	cloudMeta = flag.String("cloud", "", "Sets a specific cloud provider to do SSRF checks for")
-	webhook   = flag.String("webook", "", "Webhook endpoint to push recovered data to")
+	webhook   = flag.String("webhook", "", "Webhook endpoint to push recovered data to")
 	silent    = flag.Bool("silent", false, "Do not output results to stdout")
 	help      = flag.Bool("help", false, "Display this help screen")
 )

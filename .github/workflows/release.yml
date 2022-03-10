@@ -1,0 +1,95 @@
+name: Test and Release
+on:
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+
+  build:
+    strategy:
+      matrix:
+        arch: [ amd64, arm64, 386 ]
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17.x
+      - name: Checkout code
+        uses: actions/checkout@v2
+      #- name: Test
+      #  run: make test
+      - name: Build
+        run:  GOARCH=${{ matrix.arch }} go build -ldflags "-X github.com/liamg/traitor/internal/version.Version=`echo '${{ github.ref }}' | awk -F'/' '{print $3}'`" -o sneak-${{ matrix.arch }}
+      - name: Upload result
+        uses: actions/upload-artifact@v2-preview
+        with:
+          name: traitor-${{ matrix.arch }}
+          path: traitor-${{ matrix.arch }}
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: get_tag_name
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # name the release with the run_id to allow multiple builds on the same branch/tag
+          # https://github.com/actions/create-release/issues/2#issuecomment-613591846
+          tag_name: ${{ steps.get_tag_name.outputs.VERSION }}
+          release_name: Release ${{ steps.get_tag_name.outputs.VERSION }}
+          draft: false
+          prerelease: false
+
+      - uses: actions/download-artifact@v1
+        with:
+          name: traitor-amd64
+        continue-on-error: true
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./traitor-amd64/traitor-amd64
+          asset_name: traitor-amd64
+          asset_content_type: application/octen-stream
+        continue-on-error: true
+
+      - uses: actions/download-artifact@v1
+        with:
+          name: traitor-arm64
+        continue-on-error: true
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./traitor-arm64/traitor-arm64
+          asset_name: traitor-arm64
+          asset_content_type: application/octen-stream
+        continue-on-error: true
+
+      - uses: actions/download-artifact@v1
+        with:
+          name: traitor-386
+        continue-on-error: true
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./traitor-386/traitor-386
+          asset_name: traitor-386
+          asset_content_type: application/octen-stream
+        continue-on-error: true
