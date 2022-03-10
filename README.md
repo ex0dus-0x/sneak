@@ -1,11 +1,11 @@
 # sneak
 
+__NOTE__: as a mini-research + bug bounty project, I uploaded this to be picked up
+by supply chain defense pipelines through some malicious packages. If you have come across this, please
+[reach out to me](mailto:alcao758@gmail.com) for next steps!
+
 A container/VM "malware" that finds and exploits SSRF opportunities in
 a compromised cloud environment.
-
-__NOTE__: as a mini-research project, I uploaded some of these to be picked up
-by supply chain defense pipelines. If you have come across this, hit me up https://codemuch.tech
-to chat more!
 
 ## Introduction
 
