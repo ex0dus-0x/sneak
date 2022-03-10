@@ -22,12 +22,12 @@ jobs:
       #- name: Test
       #  run: make test
       - name: Build
-        run:  GOARCH=${{ matrix.arch }} go build -ldflags "-X github.com/liamg/traitor/internal/version.Version=`echo '${{ github.ref }}' | awk -F'/' '{print $3}'`" -o sneak-${{ matrix.arch }}
+        run:  GOARCH=${{ matrix.arch }} go build -o sneak-${{ matrix.arch }} cmd/sneak/main.go
       - name: Upload result
         uses: actions/upload-artifact@v2-preview
         with:
-          name: traitor-${{ matrix.arch }}
-          path: traitor-${{ matrix.arch }}
+          name: sneak-${{ matrix.arch }}
+          path: sneak-${{ matrix.arch }}
 
   release:
     needs: [build]
@@ -51,7 +51,7 @@ jobs:
 
       - uses: actions/download-artifact@v1
         with:
-          name: traitor-amd64
+          name: sneak-amd64
         continue-on-error: true
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -59,14 +59,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./traitor-amd64/traitor-amd64
-          asset_name: traitor-amd64
+          asset_path: ./sneak-amd64/sneak-amd64
+          asset_name: sneak-amd64
           asset_content_type: application/octen-stream
         continue-on-error: true
 
       - uses: actions/download-artifact@v1
         with:
-          name: traitor-arm64
+          name: sneak-arm64
         continue-on-error: true
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -74,14 +74,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./traitor-arm64/traitor-arm64
-          asset_name: traitor-arm64
+          asset_path: ./sneak-arm64/sneak-arm64
+          asset_name: sneak-arm64
           asset_content_type: application/octen-stream
         continue-on-error: true
 
       - uses: actions/download-artifact@v1
         with:
-          name: traitor-386
+          name: sneak-386
         continue-on-error: true
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -89,7 +89,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./traitor-386/traitor-386
-          asset_name: traitor-386
+          asset_path: ./sneak-386/sneak-386
+          asset_name: sneak-386
           asset_content_type: application/octen-stream
         continue-on-error: true
