@@ -23,13 +23,19 @@ type SsrfResults map[string]string
 // Main interface for enumerating the environment and storing the results for
 // output and/or webhook
 type Enumerator struct {
-	EnvType string                  `json:"env"`
-	Results map[string]*SsrfResults `json:"ssrf_results"`
+	Hostname string                  `json:"hostname"`
+	EnvType  string                  `json:"env"`
+	Results  map[string]*SsrfResults `json:"ssrf_results"`
 }
 
 // Creates a new Enumerator, populates with inital recon,
 // and prepare to build from SSRF checks.
 func StartEnum() *Enumerator {
+	var hostname string
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = ""
+	}
 
 	// check for Docker by control groups
 	var envtype string
@@ -43,7 +49,8 @@ func StartEnum() *Enumerator {
 	}
 
 	return &Enumerator{
-		EnvType: envtype,
+		Hostname: hostname,
+		EnvType:  envtype,
 		Results: map[string]*SsrfResults{
 			"cloud": nil,
 			"net":   nil,
