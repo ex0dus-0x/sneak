@@ -20,6 +20,11 @@ var (
 	help      = flag.Bool("help", false, "Display this help screen")
 )
 
+
+// We can also set this through the linker in the case we're in an environment
+// where passing in flags or envvars isn't possible
+var CompileTimeWebhook string
+
 // TODO: better logging
 func main() {
 	flag.Parse()
@@ -43,6 +48,12 @@ func main() {
 		fmt.Println("Enumerating envs")
 		enum.CheckEnv()
 	}
+
+    // override's the flag if set
+    if CompileTimeWebhook != "" {
+        webhook = &CompileTimeWebhook
+        fmt.Printf("Using webhook %s\n", *webhook)
+    }
 
 	if err := enum.Export(webhook, *silent); err != nil {
 		panic(err)
