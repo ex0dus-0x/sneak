@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -83,11 +84,11 @@ func (e *Enumerator) CheckCloud(specific *string) error {
 
 	// test for each available metadata endpoint
 	for provider, action := range metadata {
-		fmt.Printf("Testing %s\n", provider)
+		log.Printf("Testing for provider %s\n", provider)
 
 		// skip if litmus test for provider fails
 		if !action.CheckLitmus() {
-			fmt.Printf("Cannot reach metadata endpoint for %s\n", provider)
+			log.Printf("Cannot reach metadata endpoint for %s\n", provider)
 			continue
 		}
 

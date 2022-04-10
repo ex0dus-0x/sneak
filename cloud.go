@@ -1,8 +1,8 @@
 package sneak
 
 import (
-	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -71,7 +71,7 @@ func (c *CloudSsrf) Exploit() SsrfResults {
 
 	// to remain reliable, if a check fails, we'll log and skip
 	for check, endpoint := range c.Paths {
-		fmt.Printf("Running `%s`\n", check)
+		log.Printf("Checking endpoints for vendor `%s`\n", check)
 
 		url := c.Actual + endpoint
 		req, err := http.NewRequest("GET", url, nil)
@@ -151,7 +151,7 @@ func GetMetadataEndpoints() MetadataEndpoints {
 
 					tokenResp, err := client.Do(req)
 					if err != nil {
-						fmt.Println("Request to service failed")
+						//log.Println("Request to service failed")
 						return "", err
 					}
 
